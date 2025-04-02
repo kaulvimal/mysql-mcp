@@ -3,52 +3,20 @@ import { z } from 'zod';
 import { pool } from '../config.js'; // Import the pool
 import type { McpToolResponse, ToolDefinition } from './types.js'; // Import shared types
 import type { PoolConnection, OkPacket, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { isReadOnlyQuery } from './utils.js'; // Import the utility function
 
 // Define the raw shape for Zod validation
 const runSqlQueryRawInput = {
   databaseName: z.string().describe("The name of the database to run the query against."),
-  sqlQuery: z.string().describe("The read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) to execute."), // Updated description
+  sqlQuery: z.string().describe("The read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) to execute."),
 };
-
-// --- Read-Only Query Check ---
-const ALLOWED_QUERY_PREFIXES = ['SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN', 'WITH']; // Allow CTEs before SELECT
-const FORBIDDEN_KEYWORDS = [
-    'INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE',
-    'GRANT', 'REVOKE', 'SET', 'LOCK', 'UNLOCK', 'CALL', 'LOAD', 'HANDLER', 'DO'
-    // Add more potentially harmful keywords if necessary
-];
-
-function isReadOnlyQuery(query: string): boolean {
-    const upperQuery = query.trim().toUpperCase();
-
-    // Check for forbidden keywords anywhere in the query (basic check)
-    // Note: This might block legitimate SELECTs with comments containing these words.
-    // A more robust SQL parser would be needed for perfect accuracy.
-    if (FORBIDDEN_KEYWORDS.some(keyword => upperQuery.includes(keyword + ' ') || upperQuery.includes(keyword + '('))) {
-        // Double check if it's a SELECT statement despite containing a keyword (e.g., in a comment or string literal)
-        // This is still imperfect.
-        if (!upperQuery.startsWith('SELECT') && !upperQuery.startsWith('WITH')) {
-             console.warn(`[run-sql-query] Query rejected: Contains forbidden keyword.`);
-             return false;
-        }
-    }
-
-    // Check if the query starts with an allowed prefix
-    if (!ALLOWED_QUERY_PREFIXES.some(prefix => upperQuery.startsWith(prefix + ' ') || upperQuery.startsWith(prefix + '('))) {
-         console.warn(`[run-sql-query] Query rejected: Does not start with allowed prefix (SELECT, SHOW, DESCRIBE, EXPLAIN, WITH).`);
-        return false;
-    }
-
-    // Basic check passed
-    return true;
-}
 
 // Define the handler function for the tool
 const runSqlQueryHandler = async (args: { databaseName: string; sqlQuery: string; }, extra: any): Promise<McpToolResponse> => {
   const { databaseName, sqlQuery } = args;
   let connection: PoolConnection | null = null;
 
-  // --- Enforce Read-Only ---
+  // --- Enforce Read-Only using utility function ---
   if (!isReadOnlyQuery(sqlQuery)) {
       return {
           isError: true,
@@ -67,7 +35,7 @@ const runSqlQueryHandler = async (args: { databaseName: string; sqlQuery: string
     const [results] = await connection.query(sqlQuery);
     console.error(`[run-sql-query] Query executed successfully in DB '${databaseName}'.`);
 
-    // Format results (same logic as before, should only get results from read-only queries now)
+    // Format results
     let resultText: string;
     if (Array.isArray(results)) {
         if (results.length > 0 && typeof results[0] === 'object' && results[0] !== null) {
@@ -79,7 +47,6 @@ const runSqlQueryHandler = async (args: { databaseName: string; sqlQuery: string
             resultText = `Query executed. Result:\n\n${JSON.stringify(results, null, 2)}`;
         }
     } else if (typeof results === 'object' && results !== null && ('affectedRows' in results || 'insertId' in results)) {
-      // This block should ideally not be reached with read-only enforcement, but kept as fallback
       const okResult = results as OkPacket | ResultSetHeader;
       resultText = `Query executed successfully (unexpected result type for read-only query).\n` +
                    `Affected Rows: ${okResult.affectedRows}\n` +
@@ -114,7 +81,7 @@ const runSqlQueryHandler = async (args: { databaseName: string; sqlQuery: string
 // Export the tool definition object conforming to ToolDefinition type
 export const runSqlQueryTool: ToolDefinition = {
   name: "run-sql-query",
-  description: "Executes a given READ-ONLY SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) against a specified MySQL database.", // Updated description
+  description: "[DEPRECATED - Use execute_query] Executes a given READ-ONLY SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) against a specified MySQL database.", // Updated description
   rawInputSchema: runSqlQueryRawInput,
   handler: runSqlQueryHandler,
 };
