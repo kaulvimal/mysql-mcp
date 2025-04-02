@@ -22,11 +22,11 @@ const server = new McpServer({
 });
 
 // --- Register all imported tools ---
-console.error(`Registering ${allTools.length} tool(s)...`);
+// console.error(`Registering ${allTools.length} tool(s)...`);
 allTools.forEach(tool => {
   // Ensure the tool definition is valid before registering
   if (tool && typeof tool === 'object' && tool.name && tool.description && tool.rawInputSchema && tool.handler) {
-    console.error(` - Registering tool: ${tool.name}`);
+    // console.error(` - Registering tool: ${tool.name}`);
     // Use the correct Zod schema type expected by server.tool
     // Assuming inputSchema is a Zod schema object, directly pass it
     server.tool(
@@ -40,7 +40,7 @@ allTools.forEach(tool => {
     console.warn(`Skipping invalid or incomplete tool definition:`, tool);
   }
 });
-console.error("Tool registration complete.");
+// console.error("Tool registration complete.");
 
 // --- Main Function to Start the Server ---
 async function main() {
