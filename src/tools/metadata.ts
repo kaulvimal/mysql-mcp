@@ -7,20 +7,18 @@ import mysql from 'mysql2/promise';
 import { formatErrorResponse } from './utils.js'; // Import shared error formatter
 
 // --- Helper Types ---
-type ColumnDefinition = { name: string; type: string; isNullable: string; defaultValue: string | null; isPrimaryKey?: boolean; isAutoIncrement?: boolean; comment?: string; };
-type SchemaDetails = Map<string, { columns: Map<string, ColumnDefinition>; indexes?: Map<string, IndexDefinition>; constraints?: ConstraintDefinition[]; }>;
-type IndexDefinition = { name: string; columns: string[]; isUnique: boolean; type: string; };
-type ConstraintDefinition = { name: string; type: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | 'CHECK'; columns?: string[]; referencedTable?: string; referencedColumns?: string[]; checkClause?: string; };
-type Relationship = { constraintName: string; sourceTable: string; sourceColumns: string[]; referencedTable: string; referencedColumns: string[]; type: 'explicit'; };
-type ImplicitRelationship = { sourceTable: string; sourceColumn: string; referencedTable: string; referencedColumn: string; type: 'implicit'; };
+export type ColumnDefinition = { name: string; type: string; isNullable: string; defaultValue: string | null; isPrimaryKey?: boolean; isAutoIncrement?: boolean; comment?: string; };
+export type SchemaDetails = Map<string, { columns: Map<string, ColumnDefinition>; indexes?: Map<string, IndexDefinition>; constraints?: ConstraintDefinition[]; }>;
+export type IndexDefinition = { name: string; columns: string[]; isUnique: boolean; type: string; };
+export type ConstraintDefinition = { name: string; type: 'PRIMARY KEY' | 'UNIQUE' | 'FOREIGN KEY' | 'CHECK'; columns?: string[]; referencedTable?: string; referencedColumns?: string[]; checkClause?: string; };
+export type Relationship = { constraintName: string; sourceTable: string; sourceColumns: string[]; referencedTable: string; referencedColumns: string[]; type: 'explicit'; };
+export type ImplicitRelationship = { sourceTable: string; sourceColumn: string; referencedTable: string; referencedColumn: string; type: 'implicit'; };
 type ColumnDiff = { sourceDef: ColumnDefinition | null; targetDef: ColumnDefinition | null; };
 type TableDiff = { sourceOnlyColumns: string[]; targetOnlyColumns: string[]; differingColumns: Map<string, ColumnDiff>; };
 type SchemaDiff = { sourceOnlyTables: string[]; targetOnlyTables: string[]; differingTables: Map<string, TableDiff>; identicalTables: string[]; };
 
-// --- Zod Schemas ---
-
 // --- Helper Function to Fetch Schema Details ---
-async function fetchSchemaDetails(connection: PoolConnection | Connection, dbName: string, requestedTables?: string[]): Promise<SchemaDetails> {
+export async function fetchSchemaDetails(connection: PoolConnection | Connection, dbName: string, requestedTables?: string[]): Promise<SchemaDetails> {
     const schemaDetails: SchemaDetails = new Map();
     const hasSpecificTables = requestedTables && requestedTables.length > 0;
     // 1. Fetch Columns
