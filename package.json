@@ -1,4 +1,10 @@
 {
+  "name": "mysql-mcp-server",
+  "version": "1.1.0",
+  "description": "MCP Server for MySQL Interaction",
+  "author": "Vimal Kaul",
+  "license": "ISC",
+  "main": "dist/index.js",
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
@@ -9,6 +15,11 @@
   "scripts": {
     "build": "tsc && chmod 755 build/index.js"
   },
+  "keywords": [
+    "mcp",
+    "mysql",
+    "typescript"
+  ],
   "devDependencies": {
     "@types/node": "^22.13.16",
     "typescript": "^5.8.2"
