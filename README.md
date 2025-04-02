@@ -61,32 +61,32 @@ The server exposes several tools via MCP for database interaction. All tools are
 
 5. **Using the server**
 
-   1.  Create a shell script (e.g., `mysql-mcp.sh`) in the project root or a convenient location:
+- Create a shell script (e.g., `mysql-mcp.sh`) in the project root or a convenient location:
 
-   	```bash
-       #!/bin/bash
-       # Set environment variables (if not using .env or want to override)
-       # export DB_HOST=localhost
-       # export DB_USER=root
-       # export DB_PASSWORD=""
-       # export DB_PORT=3306
-       node $(dirname "$0")/build/index.js
-       ```
+	```bash
+    #!/bin/bash
+    # Set environment variables (if not using .env or want to override)
+    # export DB_HOST=localhost
+    # export DB_USER=root
+    # export DB_PASSWORD=""
+    # export DB_PORT=3306
+    node $(dirname "$0")/build/index.js
+    ```
 
-   2.  Make the script executable:
-       ```bash
-       chmod +x mysql-mcp.sh
-       ```
+- Make the script executable:
+    ```bash
+    chmod +x mysql-mcp.sh
+    ```
 
-   3. Integration Example (Cursor)
+- Integration Example (Cursor)
 
-   To integrate this server with an Cursor, you can configure the client to run the server's execution script:
+	To integrate this server with an Cursor, you can configure the client to run the server's execution script:
 
-   ```json
-   {
-     "mcpServers": {
-       "mysql-mcp": {
-         "command": "/path/to/your/mysql-mcp.sh" // Replace with the actual path to your script
-       }
-     }
-   }
+	```json
+	{
+	"mcpServers": {
+		"mysql-mcp": {
+		"command": "/path/to/your/mysql-mcp.sh" // Replace with the actual path to your script
+		}
+	}
+	}
