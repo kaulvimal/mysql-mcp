@@ -243,20 +243,20 @@ const CompareSchemasInputSchema = z.object(compareSchemasRawInput);
 const compareSchemasHandler = async (args: z.infer<typeof CompareSchemasInputSchema>, extra: any): Promise<McpToolResponse> => {
     const { sourceDatabaseName, target_connection } = args; let sourceConnection: PoolConnection | null = null; let targetConnection: Connection | null = null;
     try {
-        console.error(`[compare_schemas] Getting connection from pool for source DB: ${sourceDatabaseName}`);
+        // console.error(`[compare_schemas] Getting connection from pool for source DB: ${sourceDatabaseName}`);
         sourceConnection = await pool.getConnection();
-        console.error(`[compare_schemas] Creating connection for target DB: ${target_connection.databaseName} on ${target_connection.host}`);
+        // console.error(`[compare_schemas] Creating connection for target DB: ${target_connection.databaseName} on ${target_connection.host}`);
         targetConnection = await mysql.createConnection({ host: target_connection.host, user: target_connection.user, password: target_connection.password, port: target_connection.port, database: target_connection.databaseName });
         await targetConnection.ping(); console.error(`[compare_schemas] Target connection successful.`);
-        console.error(`[compare_schemas] Fetching schema details for source: ${sourceDatabaseName}`);
+        // console.error(`[compare_schemas] Fetching schema details for source: ${sourceDatabaseName}`);
         const sourceSchema = await fetchSchemaDetails(sourceConnection, sourceDatabaseName);
-        console.error(`[compare_schemas] Fetched ${sourceSchema.size} tables from source.`);
-        console.error(`[compare_schemas] Fetching schema details for target: ${target_connection.databaseName}`);
+        // console.error(`[compare_schemas] Fetched ${sourceSchema.size} tables from source.`);
+        // console.error(`[compare_schemas] Fetching schema details for target: ${target_connection.databaseName}`);
         const targetSchema = await fetchSchemaDetails(targetConnection, target_connection.databaseName);
-        console.error(`[compare_schemas] Fetched ${targetSchema.size} tables from target.`);
-        console.error(`[compare_schemas] Comparing schemas...`);
+        // console.error(`[compare_schemas] Fetched ${targetSchema.size} tables from target.`);
+        // console.error(`[compare_schemas] Comparing schemas...`);
         const schemaDiff = diffSchemas(sourceSchema, targetSchema);
-        console.error(`[compare_schemas] Formatting report...`);
+        // console.error(`[compare_schemas] Formatting report...`);
         const report = formatSchemaDiff(schemaDiff, sourceDatabaseName, target_connection.databaseName);
         return { content: [{ type: "text", text: report }] };
     }
@@ -372,7 +372,6 @@ const detectSchemaChangesHandler = async (args: z.infer<typeof DetectSchemaChang
 const findRelationshipsRawInput = {
     databaseName: z.string().describe("The database to search within."),
     tables: z.array(z.string()).optional().describe("Optional: Specific tables to focus on. If omitted, searches the entire database."),
-    include_implicit: z.boolean().default(false).describe("Attempt to find implicit relationships based on naming conventions (e.g., 'table_id' column). WARNING: Can be inaccurate.")
 };
 const FindRelationshipsInputSchema = z.object(findRelationshipsRawInput);
 async function fetchExplicitRelationships(connection: PoolConnection | Connection, dbName: string, tableNames?: string[]): Promise<Relationship[]> {
@@ -383,26 +382,18 @@ async function fetchExplicitRelationships(connection: PoolConnection | Connectio
     const groupedByConstraint: Map<string, Relationship> = new Map();
     for (const row of results) { const key = row.CONSTRAINT_NAME; if (!groupedByConstraint.has(key)) { groupedByConstraint.set(key, { constraintName: row.CONSTRAINT_NAME, sourceTable: row.TABLE_NAME, sourceColumns: [], referencedTable: row.REFERENCED_TABLE_NAME, referencedColumns: [], type: 'explicit' }); } groupedByConstraint.get(key)!.sourceColumns.push(row.COLUMN_NAME); groupedByConstraint.get(key)!.referencedColumns.push(row.REFERENCED_COLUMN_NAME); } return Array.from(groupedByConstraint.values());
  }
-async function fetchImplicitRelationships(connection: PoolConnection | Connection, dbName: string, tableNames?: string[]): Promise<ImplicitRelationship[]> {
-    console.log("[find_relationships] Attempting to detect implicit relationships..."); const implicitRelationships: ImplicitRelationship[] = [];
-    let columnSql = `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_KEY FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ?`; const columnParams: any[] = [dbName]; if (tableNames && tableNames.length > 0) { columnSql += ` AND TABLE_NAME IN (?)`; columnParams.push(tableNames); } columnSql += ` ORDER BY TABLE_NAME, ORDINAL_POSITION;`; const [allColumns] = await connection.query<RowDataPacket[]>(columnSql, columnParams);
-    const existingTables = new Set<string>(); const primaryKeys: Map<string, string> = new Map(); allColumns.forEach(col => { existingTables.add(col.TABLE_NAME); if (col.COLUMN_KEY === 'PRI') { primaryKeys.set(col.TABLE_NAME, col.COLUMN_NAME); } });
-    for (const tableName of existingTables) { if (!primaryKeys.has(tableName)) { const idColumn = allColumns.find(col => col.TABLE_NAME === tableName && col.COLUMN_NAME.toLowerCase() === 'id'); if (idColumn) { primaryKeys.set(tableName, idColumn.COLUMN_NAME); } } }
-    for (const col of allColumns) { const sourceTable = col.TABLE_NAME; const sourceColumn = col.COLUMN_NAME; if (col.COLUMN_KEY === 'PRI') continue; if (sourceColumn.toLowerCase().endsWith('_id')) { const potentialRefTable = sourceColumn.substring(0, sourceColumn.length - 3); if (existingTables.has(potentialRefTable)) { if (sourceTable !== potentialRefTable) { const referencedPK = primaryKeys.get(potentialRefTable); if (referencedPK) { console.log(`[find_relationships] Found potential implicit relationship: ${sourceTable}.${sourceColumn} -> ${potentialRefTable}.${referencedPK}`); implicitRelationships.push({ sourceTable: sourceTable, sourceColumn: sourceColumn, referencedTable: potentialRefTable, referencedColumn: referencedPK, type: 'implicit' }); } } } } } console.log(`[find_relationships] Found ${implicitRelationships.length} potential implicit relationship(s).`); return implicitRelationships;
- }
 const findRelationshipsHandler = async (args: z.infer<typeof FindRelationshipsInputSchema>, extra: any): Promise<McpToolResponse> => {
-    const { databaseName, tables, include_implicit } = args; let connection: PoolConnection | null = null;
+    const { databaseName, tables } = args; let connection: PoolConnection | null = null;
     try {
         let resultsText = '';
         let combinedResults: (Relationship | ImplicitRelationship)[] = [];
-        if (include_implicit) { resultsText += "NOTE: Implicit relationship detection is based on naming conventions (`table_id` -> `table`.`id` or PK) and may be inaccurate.\n\n"; }
         connection = await pool.getConnection();
-        console.error(`[find_relationships] Fetching explicit FK relationships for DB '${databaseName}'...`);
+        // console.error(`[find_relationships] Fetching explicit FK relationships for DB '${databaseName}'...`);
         const explicitRelationships = await fetchExplicitRelationships(connection, databaseName, tables);
         combinedResults = [...explicitRelationships];
-        if (include_implicit) { const implicitRelationships = await fetchImplicitRelationships(connection, databaseName, tables); combinedResults = [...combinedResults, ...implicitRelationships]; }
-        if (combinedResults.length === 0) { resultsText += `No explicit${include_implicit ? ' or potential implicit' : ''} relationships found matching the criteria in database '${databaseName}'.`; }
-        else { resultsText += `Found ${explicitRelationships.length} explicit${include_implicit ? ` and ${combinedResults.length - explicitRelationships.length} potential implicit` : ''} relationship(s) in '${databaseName}':\n\n`; resultsText += JSON.stringify(combinedResults, null, 2); }
+
+        if (combinedResults.length === 0) { resultsText += `No relationships found matching the criteria in database '${databaseName}'.`; }
+        else { resultsText += `Found ${explicitRelationships.length} explicit${ ` ${combinedResults.length - explicitRelationships.length}` } relationship(s) in '${databaseName}':\n\n`; resultsText += JSON.stringify(combinedResults, null, 2); }
         return { content: [{ type: "text", text: resultsText }] };
     }
     catch (error: any) { return formatErrorResponse('find_relationships', `find relationships for '${databaseName}'`, error, databaseName); }
