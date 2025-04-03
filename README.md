@@ -53,11 +53,10 @@ The server exposes several tools via MCP for database interaction. All tools are
     npm install
     ```
 4.  **Build the Project:**
-    * Compile the TypeScript code to JavaScript:
-        ```bash
-        npm run build
-        ```
-        This will create a `build` directory with the compiled code.
+    ```bash
+	npm run build
+    ```
+   	This will create a `build` directory with the compiled code.
 
 5. **Using the server**
 
