@@ -24,7 +24,7 @@ if (!dbConnectionConfig.host || !dbConnectionConfig.user) {
   );
   // Exit gracefully if essential config is missing
   process.exit(1);
-  // throw new Error('Missing essential database configuration in .env file (DB_HOST, DB_USER)');
+  throw new Error('Missing essential database configuration in .env file (DB_HOST, DB_USER)');
 }
 
 /**
