@@ -11,7 +11,7 @@ import mysql from 'mysql2/promise'; // For escape method
 const executeQueryRawInput = {
   databaseName: z.string().describe("The name of the database to run the query against."),
   query: z.string().describe("The read-only SQL query (SELECT, SHOW, DESCRIBE, EXPLAIN) to execute."),
-  params: z.array(z.any()).optional().describe("Optional array of parameters for prepared statement placeholders (?)."),
+    params: z.array(z.union([z.string(), z.number()])).optional().describe("Optional array of parameters (strings or numbers) for prepared statement placeholders (?)."),
   pagination: z.object({
       limit: z.coerce.number().int().positive().describe("Number of rows to return."),
       offset: z.coerce.number().int().nonnegative().optional().default(0).describe("Number of rows to skip."),
@@ -181,7 +181,7 @@ export const executeBatchTool: ToolDefinition = {
 const prepareStatementRawInput = {
     databaseName: z.string().describe("The database where the statement should be prepared and executed."),
     query: z.string().describe("The read-only SQL query with placeholders (?) to prepare."),
-    params: z.array(z.any()).optional().describe("Optional array of parameters to bind to the placeholders for execution."),
+    params: z.array(z.union([z.string(), z.number()])).optional().describe("Optional array of parameters to bind to the placeholders for execution."),
 };
 const PrepareStatementInputSchema = z.object(prepareStatementRawInput);
 
