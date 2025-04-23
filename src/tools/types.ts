@@ -17,7 +17,14 @@ export type ToolDefinition = {
     name: string;
     description: string;
     // The raw Zod schema definition object (not the parsed schema).
+    // Tool handlers will need to include databaseType in their schemas.
     rawInputSchema: Record<string, any>;
     // The handler function that executes the tool's logic.
+    // Handlers will need to determine the DB type and use the appropriate adapter.
     handler: (args: any, extra: any) => Promise<McpToolResponse>;
 };
+
+/**
+ * Defines the supported database types.
+ */
+export type DatabaseType = 'mysql' | 'postgres';

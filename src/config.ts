@@ -1,56 +1,109 @@
 // src/config.ts
 import 'dotenv/config'; // Load .env file variables into process.env
 import mysql from 'mysql2/promise';
+import pg from 'pg'; // Import the pg library
+import fs from 'fs'; // Import the file system module
+import path from 'path'; // Import the path module
 
-/**
- * Database configuration object.
- * Reads connection details from environment variables loaded via dotenv.
- */
-const dbConnectionConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 3306,
-  // Consider adding database: process.env.DB_NAME if a default DB is often used
-  // waitForConnections: true, // Part of pool options below
-  // connectionLimit: 10,     // Part of pool options below
-  // queueLimit: 0            // Part of pool options below
+// --- MySQL Configuration ---
+const mysqlConfig = {
+  host: process.env.MYSQL_HOST, // Renamed env var
+  user: process.env.MYSQL_USER, // Renamed env var
+  password: process.env.MYSQL_PASSWORD, // Renamed env var
+  port: process.env.MYSQL_PORT ? parseInt(process.env.MYSQL_PORT, 10) : 3306, // Renamed env var
+  // database: process.env.MYSQL_DB_NAME // Optional default DB
 };
 
-// Basic validation to ensure essential variables are loaded
-if (!dbConnectionConfig.host || !dbConnectionConfig.user) {
-  console.error( // Use console.error for important warnings/errors
-    'ERROR: DB_HOST or DB_USER environment variables are not set in .env file. Database connections will fail.'
-  );
-  // Exit gracefully if essential config is missing
-  process.exit(1);
-  throw new Error('Missing essential database configuration in .env file (DB_HOST, DB_USER)');
+// --- PostgreSQL Configuration ---
+const pgConfig = {
+  host: process.env.PG_HOST,
+  user: process.env.PG_USER,
+  password: process.env.PG_PASSWORD,
+  port: process.env.PG_PORT ? parseInt(process.env.PG_PORT, 10) : 5432,
+  database: process.env.PG_DATABASE, // PG often requires a database name
+  ssl: {
+    rejectUnauthorized: true, // Keep verification enabled
+    // Read the CA certificate file content
+    // Make sure 'ca-certificate.crt' is in the project root or adjust the path
+    ca: fs.readFileSync(path.resolve(process.cwd(), '/Users/vimalkaul/Herd/mysql-mcp/ca-certificate.crt')).toString(),
+  }
+};
+
+// --- Environment Variable Validation ---
+let mysqlEnabled = false;
+if (mysqlConfig.host && mysqlConfig.user) {
+  console.error("MySQL configuration found, enabling MySQL support.");
+  mysqlEnabled = true;
+} else {
+  console.warn("MySQL configuration (MYSQL_HOST, MYSQL_USER) not found in .env. MySQL tools will be unavailable.");
 }
 
-/**
- * MySQL Connection Pool.
- * Use pool.getConnection() to get a connection and connection.release() when done.
- * Handles connection management, reuse, and limits.
- */
-export const pool = mysql.createPool({
-  ...dbConnectionConfig,
-  waitForConnections: true, // Wait for available connection if pool is full
-  connectionLimit: 10,      // Max number of connections in pool
-  queueLimit: 0             // Max number of connection requests to queue (0 = no limit)
-});
+let pgEnabled = false;
+if (pgConfig.host && pgConfig.user && pgConfig.database) {
+  console.error("PostgreSQL configuration found, enabling PostgreSQL support.");
+  pgEnabled = true;
+} else {
+  console.warn("PostgreSQL configuration (PG_HOST, PG_USER, PG_DATABASE) not found or incomplete in .env. PostgreSQL tools will be unavailable.");
+}
 
-// Optional: Test the pool connection on startup
-pool.getConnection()
-  .then(connection => {
-    // console.error("Successfully connected to database pool.");
-    connection.release();
-  })
-  .catch(err => {
-    console.error("FATAL: Failed to connect to database pool:", err);
-    process.exit(1); // Exit if pool cannot be established
-  });
+if (!mysqlEnabled && !pgEnabled) {
+    console.error("ERROR: No valid database configuration found for either MySQL or PostgreSQL. Exiting.");
+    process.exit(1);
+}
 
-// Export the original config too, if needed elsewhere, though pool is preferred
-export const dbConfig = dbConnectionConfig;
 
-// You can add other configurations here as needed (e.g., logging levels)
+// --- Connection Pools ---
+
+// MySQL Pool (only create if enabled)
+export const mysqlPool = mysqlEnabled ? mysql.createPool({
+  ...mysqlConfig,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+}) : null;
+
+// PostgreSQL Pool (only create if enabled)
+// pg uses Pool slightly differently
+export const pgPool = pgEnabled ? new pg.Pool({
+  ...pgConfig,
+  max: 10, // equivalent to connectionLimit
+  idleTimeoutMillis: 300000,
+  connectionTimeoutMillis: 5000,
+}) : null;
+
+
+// --- Test Connections (Optional but Recommended) ---
+async function testConnections() {
+    if (mysqlPool) {
+        let mysqlConnection;
+        try {
+            mysqlConnection = await mysqlPool.getConnection();
+            // console.error("Successfully connected to MySQL database pool.");
+            mysqlConnection.release();
+        } catch (err) {
+            console.error("FATAL: Failed to connect to MySQL database pool:", err);
+            // Decide if failure is critical
+            // process.exit(1);
+        }
+    }
+
+    if (pgPool) {
+        let pgClient;
+        try {
+            pgClient = await pgPool.connect();
+            // console.error("Successfully connected to PostgreSQL database pool.");
+            pgClient.release();
+        } catch (err) {
+            console.error("FATAL: Failed to connect to PostgreSQL database pool:", err);
+            // Decide if failure is critical
+            // process.exit(1);
+        }
+    }
+}
+
+// Run connection tests
+testConnections();
+
+
+// --- Export individual configs if needed elsewhere ---
+export { mysqlConfig, pgConfig, mysqlEnabled, pgEnabled };
