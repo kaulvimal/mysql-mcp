@@ -1,86 +1,117 @@
 // src/tools/utils.ts
-import { pool } from '../config.js'; // Import pool for error messages
-import type { McpToolResponse } from './types.js'; // Import shared type
+import { mysqlPool, pgPool, mysqlConfig, pgConfig } from '../config.js'; // Import pools and configs
+import type { McpToolResponse, DatabaseType } from './types.js'; // Import shared types including DatabaseType
 
-// --- Read-Only Query Check ---
-const ALLOWED_QUERY_PREFIXES = ['SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN', 'WITH'];
-const FORBIDDEN_KEYWORDS = [
-    'INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'CREATE', 'ALTER', 'DROP', 'TRUNCATE',
-    'GRANT', 'REVOKE', 'SET', 'LOCK', 'UNLOCK', 'CALL', 'LOAD', 'HANDLER', 'DO',
-    'PREPARE', 'EXECUTE', 'DEALLOCATE'
-];
-
-export function isReadOnlyQuery(query: string): boolean {
-    const upperQuery = query.trim().toUpperCase();
-    const firstWord = upperQuery.split(/[\s(]+/)[0];
-
-    if (!ALLOWED_QUERY_PREFIXES.includes(firstWord)) {
-         console.warn(`[isReadOnlyQuery] Query rejected: Does not start with allowed prefix. Found: '${firstWord}'`);
-        return false;
-    }
-
-    if (FORBIDDEN_KEYWORDS.some(keyword => upperQuery.includes(keyword))) {
-        let forbiddenFound = false;
-        for (const keyword of FORBIDDEN_KEYWORDS) {
-             const index = upperQuery.indexOf(keyword);
-             if (index !== -1) {
-                 const prevChar = index === 0 ? ' ' : upperQuery[index - 1];
-                 const nextChar = index + keyword.length >= upperQuery.length ? ' ' : upperQuery[index + keyword.length];
-                 const isWholeWord = /[\s(]/.test(prevChar) && /[\s(;,]/.test(nextChar);
-                 if(isWholeWord) {
-                    forbiddenFound = true;
-                    break;
-                 }
-             }
-         }
-         if (forbiddenFound) {
-             console.warn(`[isReadOnlyQuery] Query rejected: Contains potentially forbidden keyword.`);
-             return false;
-         }
-    }
-    return true;
-}
+// Note: isReadOnlyQuery function is removed from here.
+// The logic is now implemented within MySqlAdapter and PostgresAdapter respectively.
 
 // --- Shared Error Formatting Helper ---
 /**
  * Formats an error into the standard McpToolResponse error structure.
  * Logs the full error server-side.
+ * Handles common errors for both MySQL and PostgreSQL.
  * @param toolName Name of the tool where the error occurred.
  * @param operationDesc Description of the operation being attempted.
  * @param error The caught error object.
- * @param dbName Optional database name context.
+ * @param databaseType The type of database ('mysql' or 'postgres').
+ * @param identifier Optional database name (for mysql) or schema name (for postgres) context.
  * @param tableName Optional table name context.
  * @returns McpToolResponse object representing the error.
  */
-export function formatErrorResponse(toolName: string, operationDesc: string, error: any, dbName?: string, tableName?: string): McpToolResponse {
-    console.error(`[${toolName}] Error ${operationDesc}:`, error); // Log full error server-side
+export function formatErrorResponse(
+    toolName: string,
+    operationDesc: string,
+    error: any,
+    databaseType?: DatabaseType, // Added databaseType
+    identifier?: string,        // Renamed from dbName to identifier
+    tableName?: string
+): McpToolResponse {
+    // Determine identifier type for logging/messages
+    const identifierType = databaseType === 'postgres' ? 'schema' : 'database';
+    const logDbType = databaseType || 'unknown DB';
+
+    console.error(`[${toolName}] Error (${logDbType}) ${operationDesc}:`, error); // Log full error server-side
+
+    // Construct base message using identifier
     let baseMessage = `Failed to ${operationDesc}.`;
-     if (tableName && dbName) baseMessage = `Failed to ${operationDesc} for table '${tableName}' in database '${dbName}'.`;
-     else if (dbName) baseMessage = `Failed to ${operationDesc} in database '${dbName}'.`;
+    if (tableName && identifier) baseMessage = `Failed to ${operationDesc} for table '${tableName}' in ${identifierType} '${identifier}'.`;
+    else if (identifier) baseMessage = `Failed to ${operationDesc} in ${identifierType} '${identifier}'.`;
 
     let specificError = '';
-    // Attempt to get host/user from pool config for connection errors
-    const host = pool.config.host ?? 'unknown host';
-    const user = pool.config.user ?? 'unknown user';
+    const dbType = databaseType || (mysqlPool ? 'mysql' : (pgPool ? 'postgres' : undefined)); // Infer if not provided
 
-    if (error.code) {
-        switch (error.code) {
-            case 'ER_BAD_DB_ERROR': specificError = `Database '${dbName}' does not exist or access denied.`; break;
-            case 'ER_NO_SUCH_TABLE': specificError = `Table '${tableName}' does not exist in database '${dbName}'.`; break;
-            case 'ER_PARSE_ERROR': specificError = `SQL Syntax Error: ${error.message || 'Check generated query syntax.'}`; break;
-            case 'ECONNREFUSED':
-            case 'ENOTFOUND': specificError = `Could not connect to the MySQL database host '${error.address || host}'. Check connection details.`; break;
-            case 'ER_ACCESS_DENIED_ERROR': specificError = `Access denied for user '${error.user || user}' to the database server. Check credentials.`; break;
-            case 'ER_DBACCESS_DENIED_ERROR': specificError = `Access denied for user '${error.user || user}' to database '${dbName}'.`; break;
-            case 'ER_TABLEACCESS_DENIED_ERROR': specificError = `Access denied for user '${error.user || user}' to table '${tableName}'.`; break;
-            case 'ER_SPECIFIC_ACCESS_DENIED_ERROR': specificError = `Specific privilege required is denied for user '${user}'.`; break;
-            // Add other relevant read-only error codes if needed
-            default: specificError = `MySQL Error Code: ${error.code}.`;
+    // --- MySQL Error Handling ---
+    if (dbType === 'mysql') {
+        const host = mysqlConfig.host ?? 'unknown host';
+        const user = mysqlConfig.user ?? 'unknown user';
+        // Use 'identifier' as databaseName here
+        const databaseName = identifier;
+        if (error.code) {
+            switch (error.code) {
+                case 'ER_BAD_DB_ERROR': specificError = `MySQL Error: Database '${databaseName}' does not exist or access denied.`; break;
+                case 'ER_NO_SUCH_TABLE': specificError = `MySQL Error: Table '${tableName}' does not exist in database '${databaseName}'.`; break;
+                case 'ER_PARSE_ERROR': specificError = `MySQL Syntax Error: ${error.message || 'Check generated query syntax.'}`; break;
+                case 'ECONNREFUSED':
+                case 'ENOTFOUND': specificError = `MySQL Error: Could not connect to the database host '${error.address || host}'. Check connection details.`; break;
+                case 'ER_ACCESS_DENIED_ERROR': specificError = `MySQL Error: Access denied for user '${error.user || user}' to the database server. Check credentials.`; break;
+                case 'ER_DBACCESS_DENIED_ERROR': specificError = `MySQL Error: Access denied for user '${error.user || user}' to database '${databaseName}'.`; break;
+                case 'ER_TABLEACCESS_DENIED_ERROR': specificError = `MySQL Error: Access denied for user '${error.user || user}' to table '${tableName}'.`; break;
+                case 'ER_SPECIFIC_ACCESS_DENIED_ERROR': specificError = `MySQL Error: Specific privilege required is denied for user '${user}'.`; break;
+                default: specificError = `MySQL Error Code: ${error.code}.`;
+            }
+        }
+    }
+    // --- PostgreSQL Error Handling ---
+    else if (dbType === 'postgres') {
+        const host = pgConfig.host ?? 'unknown host';
+        const user = pgConfig.user ?? 'unknown user';
+        // Use 'identifier' as schemaName here for context messages
+        const schemaName = identifier;
+        // Database name comes from config for connection errors
+        const databaseName = pgConfig.database ?? 'unknown database';
+        if (error.code) {
+            switch (error.code) {
+                // Connection Errors
+                case 'ECONNREFUSED': specificError = `PostgreSQL Error: Connection refused to host '${host}'. Is the server running and accessible?`; break;
+                case 'ENOTFOUND': specificError = `PostgreSQL Error: Host '${host}' not found. Check hostname.`; break;
+                case 'ETIMEOUT': specificError = `PostgreSQL Error: Connection timed out to host '${host}'.`; break;
+                // Authentication Errors
+                case '28000': // invalid_authorization_specification
+                case '28P01': specificError = `PostgreSQL Error: Authentication failed for user '${user}'. Check password.`; break;
+                // Database Access Errors
+                case '3D000': specificError = `PostgreSQL Error: Database '${databaseName}' does not exist.`; break; // Uses configured DB name
+                case '42501': specificError = `PostgreSQL Error: Permission denied for database '${databaseName}' or required object/schema '${schemaName}'.`; break; // Insufficient privilege
+                // Schema/Table Errors
+                case '42P01': specificError = `PostgreSQL Error: Relation (table/view) '${tableName}' or schema '${schemaName}' not found.`; break; // undefined_table / undefined_schema
+                case '3F000': specificError = `PostgreSQL Error: Schema '${schemaName}' does not exist.`; break; // invalid_schema_name
+                case '42703': specificError = `PostgreSQL Error: Column does not exist. (${error.message})`; break; // undefined_column
+                // Data Errors / Constraints
+                case '23502': specificError = `PostgreSQL Error: Not-null constraint violation. (${error.column || 'unknown column'})`; break; // not_null_violation
+                case '23503': specificError = `PostgreSQL Error: Foreign key constraint violation. (${error.constraint || 'unknown constraint'})`; break; // foreign_key_violation
+                case '23505': specificError = `PostgreSQL Error: Unique constraint violation. (${error.constraint || 'unknown constraint'})`; break; // unique_violation
+                case '23514': specificError = `PostgreSQL Error: Check constraint violation. (${error.constraint || 'unknown constraint'})`; break; // check_violation
+                // Syntax Errors
+                case '42601': specificError = `PostgreSQL Syntax Error: ${error.message || 'Check generated query syntax.'}`; break; // syntax_error
+                case '42704': specificError = `PostgreSQL Error: Undefined object. (${error.message})`; break; // undefined_object
+                case '22P02': specificError = `PostgreSQL Error: Invalid text representation for expected data type. (${error.message})`; break; // invalid_text_representation (e.g., non-integer to int column)
+
+                default: specificError = `PostgreSQL Error Code: ${error.code}.`;
+            }
+        } else if (error.routine) {
+             // Sometimes PG errors are better identified by the routine where they occurred
+             specificError = `PostgreSQL Error in routine: ${error.routine}.`;
         }
     }
 
+    // Include original message cautiously for more detail
+    const originalErrorMessage = error.message || String(error);
+    // Avoid duplicating code if specificError already includes it
+    const detailedMessage = specificError.includes(originalErrorMessage)
+                            ? `${baseMessage} ${specificError}`
+                            : `${baseMessage} ${specificError}\nServer Details: ${originalErrorMessage}`;
+
     return {
         isError: true,
-        content: [{ type: "text", text: `${baseMessage} ${specificError}\nServer Details: ${error.message || error}` }] // Include original message cautiously
+        content: [{ type: "text", text: detailedMessage }]
     };
 }
