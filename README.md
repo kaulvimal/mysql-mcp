@@ -1,6 +1,6 @@
-# MySQL MCP Server
+# MySQL & PostgreSQL MCP Server
 ## Overview
-This project provides a read-only Model Context Protocol (MCP) server for interacting with MySQL databases. It allows clients compatible with MCP to inspect database schemas, retrieve metadata, and execute read-only SQL queries through a set of defined tools. The server is built with extensibility in mind and enforces read-only operations for safety.
+This project provides a read-only Model Context Protocol (MCP) server for interacting with MySQL & PostgreSQL databases. It allows clients compatible with MCP to inspect database schemas, retrieve metadata, and execute read-only SQL queries through a set of defined tools. The server is built with extensibility in mind and enforces read-only operations for safety.
 
 ## Features & Implemented Tools
 
@@ -40,12 +40,12 @@ The server exposes several tools via MCP for database interaction. All tools are
 1.  **Prerequisites:**
     * Node.js
     * npm
-    * Access to a MySQL database
+    * Access to a MySQL or PostgreSQL database
 
 2.  **Clone the Repository:**
     ```bash
     git clone https://github.com/kaulvimal/mysql-mcp
-    cd mysql-mcp-server
+    cd mysql-mcp
     ```
 
 3.  **Install Dependencies:**
@@ -65,10 +65,16 @@ The server exposes several tools via MCP for database interaction. All tools are
 	```bash
     #!/bin/bash
     # Set environment variables (if not using .env or want to override)
-    # export DB_HOST=localhost
-    # export DB_USER=root
-    # export DB_PASSWORD=""
-    # export DB_PORT=3306
+    export MYSQL_HOST=""
+    export MYSQL_USER=""
+    export MYSQL_PASSWORD=""
+    export MYSQL_PORT=""
+
+    export PG_HOST=""
+    export PG_USER=""
+    export PG_PASSWORD=""
+    export PG_PORT=""
+    export PG_DATABASE=""
     node $(dirname "$0")/build/index.js
     ```
 
