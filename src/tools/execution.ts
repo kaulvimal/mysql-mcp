@@ -38,12 +38,18 @@ export const pingTool: ToolDefinition = {
 
 
 // --- Tool: execute_query ---
+const ParamUnion = z.union([
+    z.preprocess((v) => typeof v === 'string' ? v : undefined, z.string()),
+    z.number(),
+    z.boolean(),
+    z.null(),
+  ]);
 const executeQueryRawInput = {
     databaseType: z.enum(['mysql', 'postgres']),
     databaseName: z.string().optional().describe("The MySQL database name (required if databaseType is 'mysql')."),
     schemaName: z.string().optional().describe("The PostgreSQL schema name (required if databaseType is 'postgres', defaults to 'public'). Users should qualify table names in the query if not using the default search path."),
     query: z.string().describe("The read-only SQL query to execute."),
-    params: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().describe("Optional array of parameters for parameterized queries (e.g., using ? or $1 placeholders)."),
+    params: z.array(ParamUnion).optional().describe("Optional array of parameters for parameterized queries (e.g., using ? or $1 placeholders)."),
     pagination: z.object({
         limit: z.coerce.number().int().positive().describe("Maximum number of rows to return."),
         offset: z.coerce.number().int().nonnegative().optional().default(0).describe("Number of rows to skip."),
@@ -317,7 +323,7 @@ const prepareStatementRawInput = {
     databaseName: z.string().optional().describe("The MySQL database name (required if databaseType is 'mysql')."),
     schemaName: z.string().optional().describe("The PostgreSQL schema name (required if databaseType is 'postgres', defaults to 'public')."),
     query: z.string().describe("The read-only SQL query template with placeholders (e.g., ?, $1)."),
-    params: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default([]).describe("Array of parameter values to bind to the query placeholders."),
+    params: z.array(ParamUnion).optional().default([]).describe("Array of parameter values to bind to the query placeholders."),
 };
 const PrepareStatementInputSchema = z.object(prepareStatementRawInput);
 const prepareStatementHandler = async (args: z.infer<typeof PrepareStatementInputSchema>, extra: any): Promise<McpToolResponse> => {
