@@ -1,0 +1,28 @@
+{
+  "manifest_version": "0.2",
+  "name": "db-mcp-server",
+  "version": "2.1.0",
+  "description": "MCP Server for MySQL and PostgreSQL Interaction",
+  "author": {
+    "name": "Vimal Kaul"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/build/index.js"],
+      "env": {
+        "MYSQL_HOST": "127.0.0.1",
+        "MYSQL_USER": "root",
+        "MYSQL_PASSWORD": "",
+        "MYSQL_PORT": "3306"
+      }
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaulvimal/mysql-mcp"
+  }
+}
